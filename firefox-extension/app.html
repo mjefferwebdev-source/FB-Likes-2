@@ -1,506 +1,297 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FB Post Analyzer</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
-  <style>
-    [x-cloak] { display: none !important; }
-    .line-clamp-4 {
-      display: -webkit-box;
-      -webkit-line-clamp: 4;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-  </style>
+<meta charset="UTF-8" />
+<title>FB Post Analyzer</title>
+<style>
+:root {
+  --blue: #1877F2; --blue-hover: #166FE5; --blue-bg: #EBF2FF;
+  --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
+  --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280;
+  --gray-600: #4b5563; --gray-700: #374151; --gray-900: #111827;
+  --red-bg: #fef2f2; --red-border: #fecaca; --red-text: #b91c1c;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       background: var(--gray-100); color: var(--gray-900);
+       height: 100vh; overflow: hidden; font-size: 14px; line-height: 1.5; }
+button { cursor: pointer; border: none; background: none; font: inherit; }
+input  { font: inherit; }
+img    { display: block; }
+ul     { list-style: none; }
+a      { text-decoration: none; }
+
+/* ── Layout ── */
+.layout { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 280px; flex-shrink: 0; background: white;
+  border-right: 1px solid var(--gray-200);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.sidebar-head {
+  padding: 14px 16px; border-bottom: 1px solid var(--gray-100);
+  font-size: 11px; font-weight: 600; color: var(--gray-400);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.history-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 24px; text-align: center; gap: 12px;
+}
+.history-empty-icon {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--gray-100); display: flex;
+  align-items: center; justify-content: center;
+}
+.history-empty p { font-size: 13px; color: var(--gray-400); }
+.history-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+.h-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; cursor: pointer;
+  transition: background .12s; position: relative;
+}
+.h-item:hover { background: var(--gray-50); }
+.h-item.active { background: var(--blue-bg); border-right: 2px solid var(--blue); }
+.h-item.active .h-name { color: var(--blue); }
+.h-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  object-fit: cover; flex-shrink: 0;
+}
+.h-avatar-ph {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--blue-bg); display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
+.h-text { flex: 1; min-width: 0; }
+.h-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-url  { font-size: 11px; color: var(--gray-400); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-rm {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--gray-300); opacity: 0; transition: all .12s; flex-shrink: 0;
+}
+.h-item:hover .h-rm { opacity: 1; }
+.h-rm:hover { color: #ef4444; background: #fef2f2; }
+
+/* ── Main ── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.app-header {
+  background: white; border-bottom: 1px solid var(--gray-200);
+  padding: 12px 24px; display: flex; align-items: center;
+  gap: 12px; flex-shrink: 0;
+}
+.logo {
+  width: 36px; height: 36px; background: var(--blue); border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,.15);
+}
+.app-title    { font-size: 16px; font-weight: 700; line-height: 1.2; }
+.app-subtitle { font-size: 11px; color: var(--gray-400); line-height: 1.2; }
+
+/* ── Input bar ── */
+.input-bar {
+  background: white; border-bottom: 1px solid var(--gray-200);
+  padding: 12px 24px; flex-shrink: 0;
+}
+.url-row { display: flex; gap: 10px; }
+.url-wrap { flex: 1; position: relative; }
+.url-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--gray-400); pointer-events: none; }
+.url-input {
+  width: 100%; padding: 9px 14px 9px 34px;
+  border: 1px solid var(--gray-200); border-radius: 12px;
+  font-size: 13px; outline: none; transition: border-color .12s, box-shadow .12s;
+}
+.url-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(24,119,242,.15); }
+.url-input:disabled { opacity: .5; }
+.btn-analyze {
+  padding: 9px 20px; background: var(--blue); color: white;
+  border-radius: 12px; font-size: 13px; font-weight: 600;
+  transition: background .12s; display: flex; align-items: center;
+  gap: 7px; white-space: nowrap; flex-shrink: 0;
+}
+.btn-analyze:hover:not(:disabled) { background: var(--blue-hover); }
+.btn-analyze:disabled { opacity: .5; cursor: not-allowed; }
+.btn-analyze.stop { background: #ef4444; }
+.btn-analyze.stop:hover:not(:disabled) { background: #dc2626; }
+.filter-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.f-btn {
+  padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 500;
+  border: 1px solid var(--gray-200); background: white; color: var(--gray-600);
+  transition: all .12s;
+}
+.f-btn:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+.f-btn.active { background: var(--blue); color: white; border-color: var(--blue); }
+.f-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Content ── */
+.content { flex: 1; overflow-y: auto; padding: 24px; }
+.hidden { display: none !important; }
+
+.error-box {
+  padding: 14px; background: var(--red-bg); border: 1px solid var(--red-border);
+  border-radius: 12px; color: var(--red-text); font-size: 13px; margin-bottom: 16px;
+}
+.error-hint { font-size: 12px; color: #ef4444; margin-top: 4px; }
+
+.progress-box {
+  padding: 14px 16px; background: var(--blue-bg); border: 1px solid #BFDBFE;
+  border-radius: 12px; display: flex; align-items: center; gap: 14px; margin-bottom: 20px;
+}
+.progress-title { font-size: 13px; font-weight: 500; color: #1e40af; }
+.progress-sub   { font-size: 12px; color: #3b82f6; margin-top: 2px; }
+
+.page-box {
+  padding: 14px 16px; background: white; border: 1px solid var(--gray-200);
+  border-radius: 12px; display: flex; align-items: center; gap: 16px;
+  margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.page-avatar {
+  width: 54px; height: 54px; border-radius: 50%; object-fit: cover;
+  border: 2px solid var(--blue-bg); flex-shrink: 0;
+}
+.page-avatar-ph {
+  width: 54px; height: 54px; border-radius: 50%; background: var(--blue-bg);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.page-name { font-size: 17px; font-weight: 700; }
+.page-meta { font-size: 13px; color: var(--gray-500); margin-top: 2px; }
+
+.welcome {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 260px; gap: 16px; text-align: center;
+}
+.welcome-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--blue-bg); display: flex; align-items: center; justify-content: center;
+}
+.welcome-title { font-size: 15px; font-weight: 500; color: var(--gray-700); }
+.welcome-sub   { font-size: 13px; color: var(--gray-400); margin-top: 4px; }
+
+.posts-label {
+  font-size: 11px; color: var(--gray-400); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px;
+}
+.post-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 600px)  { .post-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 900px)  { .post-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1200px) { .post-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.post-card {
+  background: white; border: 1px solid var(--gray-200); border-radius: 12px;
+  overflow: hidden; display: flex; flex-direction: column; transition: box-shadow .15s;
+}
+.post-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+.post-img { height: 176px; width: 100%; object-fit: cover; background: var(--gray-100); }
+.post-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.post-row  { display: flex; align-items: center; justify-content: space-between; }
+.post-left { display: flex; align-items: center; gap: 8px; }
+.rank {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.rank-1 { background: #facc15; color: #78350f; }
+.rank-2 { background: var(--gray-300); color: var(--gray-700); }
+.rank-3 { background: #fb923c; color: #7c2d12; }
+.rank-n { background: var(--gray-100); color: var(--gray-500); }
+.post-date  { font-size: 11px; color: var(--gray-400); }
+.like-pill  { display: flex; align-items: center; gap: 5px; background: var(--blue-bg); padding: 4px 10px; border-radius: 999px; }
+.like-num   { font-size: 13px; font-weight: 700; color: var(--blue); }
+.post-msg   {
+  font-size: 13px; color: var(--gray-700); line-height: 1.5; flex: 1;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.post-link  { font-size: 12px; color: var(--blue); display: inline-flex; align-items: center; gap: 4px; margin-top: auto; }
+.post-link:hover { text-decoration: underline; }
+
+/* Skeleton */
+.skel { background: var(--gray-200); border-radius: 4px; }
+.skel-img { height: 176px; width: 100%; background: var(--gray-200); }
+@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.45 } }
+.pulsing { animation: pulse 1.5s ease-in-out infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinning { animation: spin .75s linear infinite; }
+</style>
 </head>
-<body class="bg-gray-100 overflow-hidden" style="height:100vh;" x-data="app()" x-init="init()" x-cloak>
+<body>
 
-<div class="flex h-screen overflow-hidden">
+<div class="layout">
 
-  <!-- ── SIDEBAR ── -->
-  <aside class="w-72 shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
-    <div class="px-4 py-4 border-b border-gray-100">
-      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Page History</p>
-    </div>
-
-    <template x-if="pageHistory.length === 0">
-      <div class="flex-1 flex flex-col items-center justify-center px-6 text-center gap-3">
-        <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
-          <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-          </svg>
-        </div>
-        <p class="text-sm text-gray-400">Pages you analyze will appear here.</p>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-head">Page History</div>
+    <div class="history-empty" id="histEmpty">
+      <div class="history-empty-icon">
+        <svg width="24" height="24" fill="none" stroke="#9ca3af" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+        </svg>
       </div>
-    </template>
-
-    <ul class="flex-1 overflow-y-auto py-2">
-      <template x-for="page in pageHistory" :key="page.url">
-        <li>
-          <button
-            @click="selectPage(page)"
-            :class="currentPage?.url === page.url
-              ? 'bg-blue-50 border-r-2 border-blue-600'
-              : 'hover:bg-gray-50'"
-            class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors group"
-          >
-            <template x-if="page.picture">
-              <img :src="page.picture" :alt="page.name"
-                   class="w-9 h-9 rounded-full object-cover shrink-0"
-                   @error="page.picture = null" />
-            </template>
-            <template x-if="!page.picture">
-              <div class="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                <svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                </svg>
-              </div>
-            </template>
-            <div class="flex-1 min-w-0">
-              <p :class="currentPage?.url === page.url ? 'text-blue-600' : 'text-gray-800'"
-                 class="text-sm font-medium truncate" x-text="page.name"></p>
-              <p class="text-xs text-gray-400 truncate" x-text="page.url.replace('https://www.facebook.com/','fb.com/')"></p>
-            </div>
-            <button
-              @click.stop="removePage(page.url)"
-              class="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
-              title="Remove"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          </button>
-        </li>
-      </template>
-    </ul>
+      <p>Pages you analyze will appear here.</p>
+    </div>
+    <ul class="history-list" id="histList"></ul>
   </aside>
 
-  <!-- ── MAIN ── -->
-  <main class="flex-1 flex flex-col overflow-hidden min-w-0">
+  <!-- MAIN -->
+  <main class="main">
 
-    <!-- Header -->
-    <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-3 shrink-0">
-      <div class="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
-        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+    <header class="app-header">
+      <div class="logo">
+        <svg width="20" height="20" fill="white" viewBox="0 0 24 24">
           <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
         </svg>
       </div>
       <div>
-        <h1 class="text-lg font-bold text-gray-900 leading-tight">FB Post Analyzer</h1>
-        <p class="text-xs text-gray-400 leading-tight">Uses your Firefox Facebook login — no API key needed</p>
+        <div class="app-title">FB Post Analyzer</div>
+        <div class="app-subtitle">Uses your Firefox Facebook login — no API key needed</div>
       </div>
     </header>
 
-    <!-- URL input + filters -->
-    <div class="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
-      <div class="flex gap-3">
-        <div class="flex-1 relative">
-          <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+    <div class="input-bar">
+      <div class="url-row">
+        <div class="url-wrap">
+          <span class="url-icon">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
             </svg>
-          </div>
-          <input
-            type="url"
-            x-model="pageUrl"
-            @keydown.enter="analyze()"
-            :disabled="loading"
-            placeholder="https://www.facebook.com/pagename"
-            class="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 disabled:opacity-50 transition-colors"
-          />
+          </span>
+          <input id="urlInput" class="url-input" type="url" placeholder="https://www.facebook.com/pagename" />
         </div>
-        <button
-          @click="loading ? stopScrape() : analyze()"
-          :disabled="!loading && !pageUrl.trim()"
-          :class="loading
-            ? 'bg-red-500 hover:bg-red-600'
-            : 'bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed'"
-          class="px-5 py-2.5 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2 shrink-0"
-        >
-          <template x-if="loading">
-            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-            </svg>
-          </template>
-          <span x-text="loading ? 'Stop' : 'Analyze'"></span>
-        </button>
+        <button id="analyzeBtn" class="btn-analyze" disabled>Analyze</button>
       </div>
-
-      <!-- Date filters -->
-      <div class="flex flex-wrap gap-2 mt-3">
-        <template x-for="f in dateFilters" :key="f.value">
-          <button
-            @click="changeFilter(f.value)"
-            :disabled="loading"
-            :class="dateFilter === f.value
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white text-gray-600 border-gray-200 hover:border-blue-500 hover:text-blue-600'"
-            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border disabled:opacity-50"
-            x-text="f.label"
-          ></button>
-        </template>
-      </div>
+      <div class="filter-row" id="filterRow"></div>
     </div>
 
-    <!-- Scrollable results -->
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="content" id="content">
+      <div id="errorBox"    class="error-box hidden"></div>
+      <div id="progressBox" class="progress-box hidden"></div>
+      <div id="pageBox"     class="page-box hidden"></div>
 
-      <!-- Error -->
-      <template x-if="error">
-        <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-          <strong>Error:</strong> <span x-text="error"></span>
-          <p class="mt-1 text-red-500 text-xs">Make sure you are logged into Facebook in Firefox, then try again.</p>
-        </div>
-      </template>
-
-      <!-- Loading progress -->
-      <template x-if="loading">
-        <div class="mb-5 p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-center gap-4">
-          <svg class="w-5 h-5 animate-spin text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+      <div id="welcomeEl" class="welcome">
+        <div class="welcome-icon">
+          <svg width="32" height="32" fill="#1877F2" viewBox="0 0 24 24">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
           </svg>
-          <div>
-            <p class="text-sm font-medium text-blue-800">
-              Opening Facebook in the background and scrolling through posts...
-            </p>
-            <p class="text-xs text-blue-600 mt-0.5">
-              <span x-text="scrapeCount"></span> posts collected so far. Large pages may take a minute.
-            </p>
-          </div>
         </div>
-      </template>
-
-      <!-- Current page banner -->
-      <template x-if="currentPage && !loading">
-        <div class="mb-5 flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
-          <template x-if="currentPage.picture">
-            <img :src="currentPage.picture" :alt="currentPage.name"
-                 class="w-14 h-14 rounded-full object-cover border-2 border-blue-100"
-                 @error="currentPage.picture = null" />
-          </template>
-          <template x-if="!currentPage.picture">
-            <div class="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-              <svg class="w-7 h-7 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-              </svg>
-            </div>
-          </template>
-          <div class="flex-1 min-w-0">
-            <h2 class="font-bold text-gray-900 text-lg truncate" x-text="currentPage.name"></h2>
-            <p class="text-gray-500 text-sm"
-               x-text="posts.length + ' post' + (posts.length !== 1 ? 's' : '') + ' found · sorted by likes'"></p>
-          </div>
+        <div>
+          <div class="welcome-title">Paste a Facebook page URL above and click Analyze</div>
+          <div class="welcome-sub">The extension scrolls through the page using your Firefox login and ranks posts by likes</div>
         </div>
-      </template>
+      </div>
 
-      <!-- Welcome state -->
-      <template x-if="!loading && !currentPage && !error">
-        <div class="flex flex-col items-center justify-center h-64 gap-4 text-center">
-          <div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
-            <svg class="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-            </svg>
-          </div>
-          <div>
-            <p class="text-gray-700 font-medium">Paste a Facebook page URL above and click Analyze</p>
-            <p class="text-gray-400 text-sm mt-1">The extension will scroll through the page using your Firefox login and rank posts by likes</p>
-          </div>
-        </div>
-      </template>
+      <div id="emptyEl" class="welcome hidden">
+        <div class="welcome-sub">No posts found for this time period.</div>
+      </div>
 
-      <!-- No posts -->
-      <template x-if="!loading && currentPage && posts.length === 0">
-        <div class="flex flex-col items-center justify-center h-48 gap-3 text-center">
-          <p class="text-gray-500 text-sm">No posts found for this time period.</p>
-        </div>
-      </template>
+      <div id="skelGrid" class="post-grid hidden"></div>
+      <div id="postsLabel" class="posts-label hidden"></div>
+      <div id="postGrid"  class="post-grid hidden"></div>
+    </div>
 
-      <!-- Loading skeletons -->
-      <template x-if="loading">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          <template x-for="i in 8" :key="i">
-            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden animate-pulse">
-              <div class="h-44 bg-gray-200"></div>
-              <div class="p-4 space-y-3">
-                <div class="flex justify-between">
-                  <div class="h-4 bg-gray-200 rounded w-24"></div>
-                  <div class="h-6 bg-gray-200 rounded-full w-16"></div>
-                </div>
-                <div class="space-y-2">
-                  <div class="h-3 bg-gray-200 rounded w-full"></div>
-                  <div class="h-3 bg-gray-200 rounded w-5/6"></div>
-                  <div class="h-3 bg-gray-200 rounded w-4/6"></div>
-                </div>
-              </div>
-            </div>
-          </template>
-        </div>
-      </template>
-
-      <!-- Post grid -->
-      <template x-if="!loading && posts.length > 0">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          <template x-for="(post, index) in posts" :key="post.id">
-            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
-
-              <!-- Image -->
-              <template x-if="post.picture">
-                <div class="h-44 bg-gray-100 overflow-hidden">
-                  <img :src="post.picture" alt="" class="w-full h-full object-cover" loading="lazy"
-                       @error="post.picture = null" />
-                </div>
-              </template>
-
-              <div class="p-4 flex flex-col gap-3 flex-1">
-                <!-- Rank + date + likes -->
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span :class="rankColor(index + 1)"
-                          class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                          x-text="index + 1"></span>
-                    <span class="text-xs text-gray-400" x-text="formatDate(post.createdTime)"></span>
-                  </div>
-                  <div class="flex items-center gap-1.5 bg-blue-50 px-2.5 py-1 rounded-full">
-                    <svg class="w-3.5 h-3.5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/>
-                    </svg>
-                    <span class="text-sm font-bold text-blue-600" x-text="formatLikes(post.likes)"></span>
-                  </div>
-                </div>
-
-                <!-- Message -->
-                <template x-if="post.message">
-                  <p class="text-gray-700 text-sm leading-relaxed line-clamp-4 flex-1"
-                     x-text="post.message"></p>
-                </template>
-
-                <!-- Link -->
-                <template x-if="post.permalink">
-                  <a :href="post.permalink" target="_blank" rel="noopener noreferrer"
-                     class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-auto">
-                    View on Facebook
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                    </svg>
-                  </a>
-                </template>
-              </div>
-            </div>
-          </template>
-        </div>
-      </template>
-
-    </div><!-- end scrollable -->
   </main>
 </div>
 
-<script>
-function app() {
-  return {
-    pageHistory: [],
-    currentPage: null,
-    posts: [],
-    dateFilter: 'alltime',
-    loading: false,
-    error: null,
-    pageUrl: '',
-    scrapeCount: 0,
-    scrapeTabId: null,
-
-    dateFilters: [
-      { value: 'week',    label: 'Last Week' },
-      { value: 'month',   label: 'Last Month' },
-      { value: '3months', label: 'Last 3 Months' },
-      { value: '6months', label: 'Last 6 Months' },
-      { value: 'year',    label: 'Last Year' },
-      { value: 'alltime', label: 'All Time' },
-    ],
-
-    async init() {
-      // Load saved history
-      const data = await browser.storage.local.get('page_history');
-      this.pageHistory = data.page_history || [];
-
-      // Clear any stale scrape state from a previous session
-      await browser.storage.local.remove('scrape_state');
-
-      // Listen for scrape progress/completion via storage changes
-      browser.storage.onChanged.addListener((changes) => {
-        if (changes.scrape_state) {
-          this.onScrapeState(changes.scrape_state.newValue);
-        }
-      });
-    },
-
-    onScrapeState(state) {
-      if (!state) return;
-      if (state.status === 'running') {
-        this.loading = true;
-        this.scrapeCount = state.count;
-      } else if (state.status === 'done') {
-        this.loading = false;
-        this.posts = state.posts;
-        this.scrapeCount = state.count;
-        // Update page name/picture from what the content script read off the page
-        if (state.pageInfo && this.currentPage) {
-          if (state.pageInfo.name) this.currentPage.name = state.pageInfo.name;
-          if (state.pageInfo.picture) this.currentPage.picture = state.pageInfo.picture;
-          this.saveToHistory(this.currentPage);
-        }
-        this.closeTab();
-      } else if (state.status === 'error') {
-        this.loading = false;
-        this.error = state.error || 'Something went wrong. Make sure you are logged into Facebook in Firefox.';
-        this.closeTab();
-      }
-    },
-
-    async analyze(url, filter) {
-      url = url ?? this.pageUrl;
-      filter = filter ?? this.dateFilter;
-      if (!url.trim()) return;
-
-      this.loading = true;
-      this.error = null;
-      this.posts = [];
-      this.scrapeCount = 0;
-
-      // Set a placeholder page name from the URL while we wait
-      const slug = this.slugFromUrl(url);
-      this.currentPage = { url, name: slug, picture: null };
-
-      await browser.storage.local.set({
-        scrape_state: { status: 'running', count: 0, posts: [] },
-      });
-
-      try {
-        const tab = await browser.tabs.create({ url, active: false });
-        this.scrapeTabId = tab.id;
-
-        await this.waitForLoad(tab.id);
-        await this.sleep(1500); // let content script initialise
-
-        await this.sendWithRetry(tab.id, { action: 'start', dateFilter: filter });
-      } catch (err) {
-        this.loading = false;
-        this.error = err.message;
-        this.closeTab();
-      }
-    },
-
-    async stopScrape() {
-      if (this.scrapeTabId) {
-        try { await browser.tabs.sendMessage(this.scrapeTabId, { action: 'stop' }); } catch {}
-      }
-      this.loading = false;
-      this.closeTab();
-    },
-
-    changeFilter(filter) {
-      this.dateFilter = filter;
-      if (this.currentPage && !this.loading) {
-        this.analyze(this.currentPage.url, filter);
-      }
-    },
-
-    selectPage(page) {
-      this.pageUrl = page.url;
-      this.analyze(page.url, this.dateFilter);
-    },
-
-    saveToHistory(page) {
-      const idx = this.pageHistory.findIndex(p => p.url === page.url);
-      if (idx >= 0) {
-        this.pageHistory[idx] = { ...page };
-        this.pageHistory = [...this.pageHistory];
-      } else {
-        this.pageHistory = [{ ...page }, ...this.pageHistory];
-      }
-      browser.storage.local.set({ page_history: this.pageHistory });
-    },
-
-    removePage(url) {
-      this.pageHistory = this.pageHistory.filter(p => p.url !== url);
-      browser.storage.local.set({ page_history: this.pageHistory });
-      if (this.currentPage?.url === url) {
-        this.currentPage = null;
-        this.posts = [];
-      }
-    },
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    waitForLoad(tabId) {
-      return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          browser.tabs.onUpdated.removeListener(listener);
-          reject(new Error('The page took too long to load. Try again.'));
-        }, 45_000);
-
-        function listener(id, info) {
-          if (id === tabId && info.status === 'complete') {
-            clearTimeout(timeout);
-            browser.tabs.onUpdated.removeListener(listener);
-            resolve();
-          }
-        }
-        browser.tabs.onUpdated.addListener(listener);
-      });
-    },
-
-    async sendWithRetry(tabId, msg, attempts = 6) {
-      for (let i = 0; i < attempts; i++) {
-        try {
-          await browser.tabs.sendMessage(tabId, msg);
-          return;
-        } catch {
-          if (i < attempts - 1) await this.sleep(1000);
-          else throw new Error('Could not reach the Facebook page. Make sure you are logged into Facebook in Firefox.');
-        }
-      }
-    },
-
-    async closeTab() {
-      if (this.scrapeTabId) {
-        try { await browser.tabs.remove(this.scrapeTabId); } catch {}
-        this.scrapeTabId = null;
-      }
-    },
-
-    slugFromUrl(url) {
-      try {
-        const parts = new URL(url).pathname.split('/').filter(Boolean);
-        if (parts[0] === 'pages' && parts[1]) return parts[1].replace(/-/g, ' ');
-        return parts[0] || url;
-      } catch { return url; }
-    },
-
-    formatDate(iso) {
-      if (!iso) return '';
-      return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    },
-
-    formatLikes(n) {
-      if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-      if (n >= 1_000)     return (n / 1_000).toFixed(1) + 'K';
-      return n.toLocaleString();
-    },
-
-    rankColor(rank) {
-      return ['bg-yellow-400 text-yellow-900', 'bg-gray-300 text-gray-700', 'bg-orange-400 text-orange-900'][rank - 1]
-        || 'bg-gray-100 text-gray-500';
-    },
-
-    sleep: ms => new Promise(r => setTimeout(r, ms)),
-  };
-}
-</script>
+<script src="app.js"></script>
 </body>
 </html>
