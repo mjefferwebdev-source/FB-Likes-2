@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FB Post Analyzer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .line-clamp-4 {
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 h-screen overflow-hidden" x-data="fbAnalyzer()" x-cloak>
+
+  <div class="flex h-screen overflow-hidden">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="w-72 shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+      <div class="px-4 py-4 border-b border-gray-100">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Page History</p>
+      </div>
+
+      <!-- Empty state -->
+      <template x-if="pageHistory.length === 0">
+        <div class="flex-1 flex flex-col items-center justify-center px-6 text-center gap-3">
+          <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+            <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+            </svg>
+          </div>
+          <p class="text-sm text-gray-400">Pages you analyze will appear here for quick access.</p>
+        </div>
+      </template>
+
+      <!-- History list -->
+      <ul class="flex-1 overflow-y-auto py-2">
+        <template x-for="page in pageHistory" :key="page.id">
+          <li>
+            <button
+              @click="selectPage(page)"
+              :class="currentPage?.id === page.id
+                ? 'bg-blue-50 border-r-2 border-blue-600'
+                : 'hover:bg-gray-50'"
+              class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors group"
+            >
+              <template x-if="page.picture">
+                <img :src="page.picture" :alt="page.name" class="w-9 h-9 rounded-full object-cover shrink-0" />
+              </template>
+              <template x-if="!page.picture">
+                <div class="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                </div>
+              </template>
+              <div class="flex-1 min-w-0">
+                <p :class="currentPage?.id === page.id ? 'text-blue-600' : 'text-gray-800'"
+                   class="text-sm font-medium truncate" x-text="page.name"></p>
+                <p x-show="page.fanCount > 0"
+                   class="text-xs text-gray-400 truncate"
+                   x-text="Number(page.fanCount).toLocaleString() + ' followers'"></p>
+              </div>
+              <button
+                @click.stop="removePage(page.id)"
+                class="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                title="Remove from history"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </button>
+          </li>
+        </template>
+      </ul>
+    </aside>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="flex-1 flex flex-col overflow-hidden min-w-0">
+
+      <!-- Header -->
+      <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+            <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold text-gray-900 leading-tight">FB Post Analyzer</h1>
+            <p class="text-xs text-gray-400 leading-tight">Rank posts by likes</p>
+          </div>
+        </div>
+        <button
+          @click="showTokenModal = true"
+          :class="accessToken
+            ? 'text-green-700 bg-green-50 border-green-200 hover:bg-green-100'
+            : 'text-orange-700 bg-orange-50 border-orange-200 hover:bg-orange-100'"
+          class="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border font-medium transition-colors"
+        >
+          <span :class="accessToken ? 'bg-green-500' : 'bg-orange-500'" class="w-2 h-2 rounded-full"></span>
+          <span x-text="accessToken ? 'Token set' : 'Set API token'"></span>
+        </button>
+      </header>
+
+      <!-- Input + Filters bar -->
+      <div class="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
+        <!-- URL input -->
+        <div class="flex gap-3">
+          <div class="flex-1 relative">
+            <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+              </svg>
+            </div>
+            <input
+              type="url"
+              x-model="pageUrl"
+              @keydown.enter="analyzePage()"
+              placeholder="https://www.facebook.com/pagename"
+              class="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-colors"
+            />
+          </div>
+          <button
+            @click="analyzePage()"
+            :disabled="loading || !pageUrl.trim()"
+            class="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shrink-0"
+          >
+            <template x-if="loading">
+              <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            </template>
+            <span x-text="loading ? 'Analyzing...' : 'Analyze'"></span>
+          </button>
+        </div>
+
+        <!-- Date filters -->
+        <div class="flex flex-wrap gap-2 mt-3">
+          <template x-for="f in dateFilters" :key="f.value">
+            <button
+              @click="changeFilter(f.value)"
+              :class="dateFilter === f.value
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-blue-500 hover:text-blue-600'"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border"
+              x-text="f.label"
+            ></button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Scrollable content area -->
+      <div class="flex-1 overflow-y-auto p-6">
+
+        <!-- Error -->
+        <template x-if="error">
+          <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+            <strong>Error:</strong> <span x-text="error"></span>
+          </div>
+        </template>
+
+        <!-- Current page info banner -->
+        <template x-if="currentPage && !loading">
+          <div class="mb-5 flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <template x-if="currentPage.picture">
+              <img :src="currentPage.picture" :alt="currentPage.name"
+                   class="w-14 h-14 rounded-full object-cover border-2 border-blue-100" />
+            </template>
+            <template x-if="!currentPage.picture">
+              <div class="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center">
+                <svg class="w-7 h-7 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+              </div>
+            </template>
+            <div class="flex-1 min-w-0">
+              <h2 class="font-bold text-gray-900 text-lg truncate" x-text="currentPage.name"></h2>
+              <p class="text-gray-500 text-sm">
+                <span x-show="currentPage.fanCount > 0" x-text="Number(currentPage.fanCount).toLocaleString() + ' followers · '"></span>
+                <span x-text="posts.length + ' post' + (posts.length !== 1 ? 's' : '') + ' found'"></span>
+              </p>
+            </div>
+          </div>
+        </template>
+
+        <!-- Loading skeletons -->
+        <template x-if="loading">
+          <div>
+            <p class="text-sm text-gray-400 mb-4 flex items-center gap-2">
+              <svg class="w-4 h-4 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Fetching posts — this may take a moment for large pages...
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <template x-for="i in 8" :key="i">
+                <div class="bg-white rounded-xl border border-gray-200 overflow-hidden animate-pulse">
+                  <div class="h-44 bg-gray-200"></div>
+                  <div class="p-4 space-y-3">
+                    <div class="flex justify-between">
+                      <div class="h-4 bg-gray-200 rounded w-24"></div>
+                      <div class="h-6 bg-gray-200 rounded-full w-16"></div>
+                    </div>
+                    <div class="space-y-2">
+                      <div class="h-3 bg-gray-200 rounded w-full"></div>
+                      <div class="h-3 bg-gray-200 rounded w-5/6"></div>
+                      <div class="h-3 bg-gray-200 rounded w-4/6"></div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- Empty / welcome state -->
+        <template x-if="!loading && !currentPage && !error">
+          <div class="flex flex-col items-center justify-center h-64 gap-4 text-center">
+            <div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
+              <svg class="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-gray-700 font-medium">Enter a Facebook page URL above</p>
+              <p class="text-gray-400 text-sm mt-1">Posts will be ranked from most to fewest likes</p>
+            </div>
+          </div>
+        </template>
+
+        <!-- No posts found -->
+        <template x-if="!loading && currentPage && posts.length === 0">
+          <div class="flex flex-col items-center justify-center h-48 gap-3 text-center">
+            <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+              <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <p class="text-gray-500 text-sm">No posts found for this time period.</p>
+          </div>
+        </template>
+
+        <!-- Post grid -->
+        <template x-if="!loading && posts.length > 0">
+          <div>
+            <p class="text-xs text-gray-400 mb-4 font-medium uppercase tracking-wide"
+               x-text="posts.length + ' posts · sorted by likes'"></p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <template x-for="(post, index) in posts" :key="post.id">
+                <div class="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+                  <!-- Post image -->
+                  <template x-if="post.picture">
+                    <div class="h-44 bg-gray-100 overflow-hidden">
+                      <img :src="post.picture" alt="" class="w-full h-full object-cover" loading="lazy" />
+                    </div>
+                  </template>
+
+                  <div class="p-4 flex flex-col gap-3 flex-1">
+                    <!-- Rank + Date + Like count -->
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <span
+                          :class="rankColor(index + 1)"
+                          class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                          x-text="index + 1"
+                        ></span>
+                        <span class="text-xs text-gray-400" x-text="formatDate(post.createdTime)"></span>
+                      </div>
+                      <div class="flex items-center gap-1.5 bg-blue-50 px-2.5 py-1 rounded-full">
+                        <svg class="w-3.5 h-3.5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/>
+                        </svg>
+                        <span class="text-sm font-bold text-blue-600" x-text="formatLikes(post.likes)"></span>
+                      </div>
+                    </div>
+
+                    <!-- Message -->
+                    <template x-if="post.message">
+                      <p class="text-gray-700 text-sm leading-relaxed line-clamp-4 flex-1" x-text="post.message"></p>
+                    </template>
+
+                    <!-- Link -->
+                    <template x-if="post.permalink">
+                      <a
+                        :href="post.permalink"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-auto"
+                      >
+                        View on Facebook
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>
+                      </a>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+      </div><!-- end scrollable -->
+    </main>
+  </div><!-- end flex row -->
+
+
+  <!-- ===== TOKEN MODAL ===== -->
+  <template x-if="showTokenModal">
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+
+        <!-- Modal header -->
+        <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-gray-900">Facebook Access Token</h2>
+            <p class="text-sm text-gray-500 mt-0.5">Required to fetch posts via the Graph API</p>
+          </div>
+          <button
+            @click="showTokenModal = false"
+            class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Modal body -->
+        <div class="px-6 py-5 space-y-4">
+          <div class="relative">
+            <input
+              :type="showToken ? 'text' : 'password'"
+              x-model="tokenInput"
+              placeholder="Paste your access token here"
+              class="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 font-mono"
+              autofocus
+            />
+            <button
+              @click="showToken = !showToken"
+              class="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-700"
+            >
+              <template x-if="showToken">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                </svg>
+              </template>
+              <template x-if="!showToken">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+              </template>
+            </button>
+          </div>
+
+          <!-- Instructions -->
+          <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800 space-y-2">
+            <p class="font-semibold">How to get your access token:</p>
+            <ol class="list-decimal list-inside space-y-1.5 text-blue-700">
+              <li>Go to <strong>developers.facebook.com</strong> and log in</li>
+              <li>Create a free app (choose type <strong>Business</strong> or <strong>Consumer</strong>)</li>
+              <li>In the left menu go to <strong>Tools → Graph API Explorer</strong></li>
+              <li>Select your app from the dropdown at the top right</li>
+              <li>Click <strong>Generate Access Token</strong> and grant <code class="bg-blue-100 px-1 rounded text-xs">pages_read_engagement</code> permission</li>
+              <li>Copy the token and paste it above</li>
+            </ol>
+            <p class="text-xs text-blue-500 pt-1">Your token is stored only in your browser (localStorage). Tokens expire after ~1 hour — just generate a new one when needed.</p>
+          </div>
+        </div>
+
+        <!-- Modal footer -->
+        <div class="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end">
+          <button
+            @click="showTokenModal = false"
+            class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+          >Cancel</button>
+          <template x-if="accessToken">
+            <button
+              @click="accessToken = ''; tokenInput = ''; showTokenModal = false"
+              class="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >Clear token</button>
+          </template>
+          <button
+            @click="saveToken()"
+            :disabled="!tokenInput.trim()"
+            class="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >Save Token</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+
+<script>
+function fbAnalyzer() {
+  return {
+    accessToken: localStorage.getItem('fb_access_token') || '',
+    tokenInput: localStorage.getItem('fb_access_token') || '',
+    showToken: false,
+    showTokenModal: false,
+    pageHistory: JSON.parse(localStorage.getItem('fb_page_history') || '[]'),
+    currentPage: null,
+    posts: [],
+    dateFilter: 'alltime',
+    loading: false,
+    error: null,
+    pageUrl: '',
+
+    dateFilters: [
+      { value: 'week',     label: 'Last Week' },
+      { value: 'month',    label: 'Last Month' },
+      { value: '3months',  label: 'Last 3 Months' },
+      { value: '6months',  label: 'Last 6 Months' },
+      { value: 'year',     label: 'Last Year' },
+      { value: 'alltime',  label: 'All Time' },
+    ],
+
+    init() {
+      this.$watch('pageHistory', v => localStorage.setItem('fb_page_history', JSON.stringify(v)));
+    },
+
+    saveToken() {
+      this.accessToken = this.tokenInput.trim();
+      localStorage.setItem('fb_access_token', this.accessToken);
+      this.showTokenModal = false;
+    },
+
+    sinceTimestamp(filter) {
+      const days = { week: 7, month: 30, '3months': 90, '6months': 180, year: 365 };
+      if (!days[filter]) return null;
+      return Math.floor(Date.now() / 1000 - days[filter] * 86400);
+    },
+
+    extractIdentifier(url) {
+      try {
+        const u = new URL(url.trim());
+        const parts = u.pathname.split('/').filter(Boolean);
+        if (!parts.length) return url.trim();
+        if (parts[0] === 'pages' && parts.length >= 3) return parts[2];
+        if (parts[0] === 'profile.php') return u.searchParams.get('id') || url.trim();
+        return parts[0];
+      } catch {
+        return url.trim();
+      }
+    },
+
+    async graphFetch(path, params) {
+      const url = new URL('https://graph.facebook.com/v19.0/' + path);
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
+      const res = await fetch(url.toString());
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      return data;
+    },
+
+    async analyzePage(url, filter) {
+      url = url || this.pageUrl;
+      filter = filter || this.dateFilter;
+      if (!url.trim()) return;
+      if (!this.accessToken) { this.showTokenModal = true; return; }
+
+      this.loading = true;
+      this.error = null;
+      this.posts = [];
+      this.currentPage = null;
+
+      try {
+        const id = this.extractIdentifier(url);
+
+        // Get page metadata
+        const info = await this.graphFetch(id, {
+          fields: 'id,name,picture.type(large),fan_count',
+          access_token: this.accessToken,
+        });
+
+        // Paginate through posts
+        let allPosts = [];
+        const baseParams = {
+          fields: 'id,message,story,created_time,full_picture,permalink_url,reactions.type(LIKE).limit(0).summary(true)',
+          limit: 100,
+          access_token: this.accessToken,
+        };
+        const since = this.sinceTimestamp(filter);
+        if (since) baseParams.since = since;
+
+        let nextUrl = 'https://graph.facebook.com/v19.0/' + info.id + '/posts';
+        let firstRequest = true;
+
+        while (nextUrl) {
+          let fetchUrl;
+          if (firstRequest) {
+            fetchUrl = new URL(nextUrl);
+            Object.entries(baseParams).forEach(([k, v]) => fetchUrl.searchParams.set(k, String(v)));
+            firstRequest = false;
+          } else {
+            fetchUrl = new URL(nextUrl); // already has all params baked in
+          }
+
+          const res = await fetch(fetchUrl.toString());
+          const data = await res.json();
+          if (data.error) throw new Error(data.error.message);
+
+          if (data.data && data.data.length) allPosts = allPosts.concat(data.data);
+          nextUrl = data.paging?.next || null;
+          if (allPosts.length >= 2000) break;
+        }
+
+        // Transform and sort by likes
+        const posts = allPosts.map(p => ({
+          id: p.id,
+          message: p.message || p.story || '',
+          createdTime: p.created_time,
+          picture: p.full_picture || null,
+          permalink: p.permalink_url || null,
+          likes: p.reactions?.summary?.total_count ?? 0,
+        })).sort((a, b) => b.likes - a.likes);
+
+        this.currentPage = {
+          id: info.id,
+          name: info.name,
+          picture: info.picture?.data?.url || null,
+          fanCount: info.fan_count || 0,
+          url,
+        };
+        this.posts = posts;
+
+        // Update page history
+        const idx = this.pageHistory.findIndex(p => p.id === info.id);
+        if (idx >= 0) {
+          this.pageHistory[idx] = { ...this.currentPage };
+          this.pageHistory = [...this.pageHistory];
+        } else {
+          this.pageHistory = [{ ...this.currentPage }, ...this.pageHistory];
+        }
+
+      } catch (err) {
+        this.error = err.message;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    changeFilter(filter) {
+      this.dateFilter = filter;
+      if (this.currentPage) this.analyzePage(this.currentPage.url, filter);
+    },
+
+    selectPage(page) {
+      this.pageUrl = page.url;
+      this.analyzePage(page.url, this.dateFilter);
+    },
+
+    removePage(pageId) {
+      this.pageHistory = this.pageHistory.filter(p => p.id !== pageId);
+      if (this.currentPage?.id === pageId) {
+        this.currentPage = null;
+        this.posts = [];
+      }
+    },
+
+    formatDate(iso) {
+      return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    },
+
+    formatLikes(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return n.toLocaleString();
+    },
+
+    rankColor(rank) {
+      const colors = [
+        'bg-yellow-400 text-yellow-900',
+        'bg-gray-300 text-gray-700',
+        'bg-orange-400 text-orange-900',
+      ];
+      return colors[rank - 1] || 'bg-gray-100 text-gray-500';
+    },
+  };
+}
+</script>
+</body>
+</html>
