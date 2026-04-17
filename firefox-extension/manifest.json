@@ -1,0 +1,26 @@
+{
+  "manifest_version": 2,
+  "name": "FB Post Analyzer",
+  "version": "1.0.0",
+  "description": "Rank any Facebook page's posts by likes — no API key needed.",
+  "permissions": [
+    "tabs",
+    "storage",
+    "*://*.facebook.com/*"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "browser_action": {
+    "default_title": "FB Post Analyzer",
+    "default_icon": "icon.svg"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.facebook.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
